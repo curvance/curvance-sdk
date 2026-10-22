@@ -1192,7 +1192,27 @@ test("Market.getAll scopes native-yield USDC suppression to Monad", async () => 
     assertDecimalString((arbMarkets[0]?.tokens[0] as any).nativeApy, "0.05", "Non-Monad USDC native yield must not inherit Monad suppression");
 });
 
-test("Market.getAll rejects duplicate native-yield symbols before ambiguous hydration", async () => {
+test("Market.getAll preserves different native yields for same-symbol market assets", async () => {
+    merklModule.fetchMerklOpportunities = async () => [];
+    Api.fetchNativeYields = async () => [
+        { symbol: "WMON", token: TOKEN_A, apy: 2 },
+        { symbol: "WMON", token: TOKEN_B, apy: 5 },
+    ];
+    const staticMarkets = [createStaticMarket(MARKET_A, TOKEN_A), createStaticMarket(MARKET_B, TOKEN_B)];
+    for (const market of staticMarkets) market.tokens[0]!.asset.symbol = "WMON";
+    const reader = {
+        getAllMarketData: async () => ({
+            staticMarket: staticMarkets,
+            dynamicMarket: [createDynamicMarket(MARKET_A, TOKEN_A, 111n), createDynamicMarket(MARKET_B, TOKEN_B, 222n)],
+            userData: { locks: [], markets: [createUserMarket(MARKET_A, TOKEN_A, 11n), createUserMarket(MARKET_B, TOKEN_B, 22n)] },
+        }),
+    } as any;
+    const markets = await Market.getAll(reader, {} as any, {} as any, null, ACCOUNT as any, {}, {}, createSetup() as any);
+    assertDecimalString(markets.find(market => market.address === MARKET_A)?.tokens[0]?.nativeApy, "0.02", "first association keeps its own APY");
+    assertDecimalString(markets.find(market => market.address === MARKET_B)?.tokens[0]?.nativeApy, "0.05", "second association keeps its own APY");
+});
+
+test("Market.getAll rejects duplicate legacy native-yield symbols before ambiguous hydration", async () => {
     merklModule.fetchMerklOpportunities = async () => [];
     Api.fetchNativeYields = async () => [
         { symbol: "WMON", apy: 5 },

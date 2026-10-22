@@ -1,5 +1,5 @@
 import { Contract } from "ethers";
-import { getContractAddresses, WAD_DECIMAL, type ChainRpcPrefix } from "../helpers";
+import { WAD_DECIMAL, type ChainRpcPrefix } from "../helpers";
 import type { SetupConfigSnapshot } from "../setup";
 import { address, curvance_read_provider, curvance_signer } from "../types";
 import { OptimizerReader } from "./OptimizerReader";
@@ -83,7 +83,7 @@ export class Optimizer {
             );
         }
 
-        const contracts = getContractAddresses(resolvedSetup.chain) as {
+        const contracts = resolvedSetup.contracts as {
             OracleManager?: address;
             OptimizerReader?: address;
             Optimizers?: Record<string, address>;

@@ -16,6 +16,14 @@ import { MultiDexAgg } from "../src/classes/DexAggregators/MultiDexAgg";
 import { Zapper } from "../src/classes/Zapper";
 import { CURVANCE_FEE_BPS, NO_FEE_POLICY, flatFeePolicy } from "../src/feePolicy";
 import { EMPTY_ADDRESS, getContractAddresses, NATIVE_ADDRESS } from "../src/helpers";
+// Existing boot/race cases use a deterministic registry snapshot; registry transport has separate coverage.
+test.beforeEach(t => {
+    if (!('mock' in t)) return;
+    t.mock.method(Api, 'fetchContractConfiguration', async (config: { chain: keyof typeof chain_config }) => ({
+        schema_version: 1 as const, chain_id: chain_config[config.chain].chainId,
+        revision: 'a'.repeat(64), contracts: getContractAddresses(config.chain),
+    }));
+});
 import { takePortfolioSnapshot } from "../src/integrations/snapshot";
 import {
     configureRetries,
@@ -4136,7 +4144,7 @@ test("explicit native-yield API calls keep older setup snapshots bound after a l
                 ok: true,
                 json: async () => [{
                     chain_id: 143,
-                    token: MONAD_WRAPPED_NATIVE,
+                    token: MONAD_WMON_CTOKEN,
                     symbol: "WMON",
                     token_image: "wmon.svg",
                     market_address: MONAD_MARKET,
@@ -4176,7 +4184,7 @@ test("explicit native-yield API calls keep older setup snapshots bound after a l
     const explicitArbYields = await Api.fetchNativeYields(arbResult.setupConfigSnapshot);
     const currentDefaultYields = await Api.fetchNativeYields();
 
-    assert.deepEqual(olderMonadYields, [{ symbol: "WMON", apy: 3.14 }]);
+    assert.deepEqual(olderMonadYields, [{ symbol: "WMON", apy: 3.14, token: MONAD_WMON_CTOKEN.toLowerCase() }]);
     assert.deepEqual(explicitArbYields, []);
     assert.deepEqual(currentDefaultYields, []);
     assert.deepEqual(harness.externalFetchCalls, [

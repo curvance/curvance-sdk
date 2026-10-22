@@ -62,7 +62,7 @@ test("aggregateMerklAprByToken sums duplicate opportunities by the shared matchi
     assertDecimalString(borrowApy.get("0xabc"), "0.12", "borrow APY should sum identifier and membership matches");
 });
 
-test("buildYieldIndex rejects duplicate token symbols", () => {
+test("buildYieldIndex rejects duplicate legacy symbol-only yields", () => {
     assert.throws(
         () => (Market as any).buildYieldIndex([
             { symbol: "ausd", apy: 1.23 },
@@ -70,4 +70,14 @@ test("buildYieldIndex rejects duplicate token symbols", () => {
         ]),
         /Duplicate native-yield symbol AUSD/i,
     );
+});
+
+test("buildYieldIndex separates same-symbol yields by cToken address", () => {
+    const index = (Market as any).buildYieldIndex([
+        { symbol: 'AUSD', token: '0x00000000000000000000000000000000000000AA', apy: 2 },
+        { symbol: 'AUSD', token: '0x00000000000000000000000000000000000000BB', apy: 5 },
+    ]);
+    assert.equal(index.get('0x00000000000000000000000000000000000000aa').apy, 2);
+    assert.equal(index.get('0x00000000000000000000000000000000000000bb').apy, 5);
+    assert.equal(index.has('AUSD'), false);
 });

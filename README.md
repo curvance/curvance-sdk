@@ -1027,3 +1027,35 @@ After publishing or linking a packed SDK artifact into the app repo:
 3. **App rollout workflow.** Version bump -> `npm publish` -> in app repo,
    bump `curvance` in `package.json` to the new version -> `yarn install`
    -> commit `yarn.lock` -> deploy.
+## Registry-backed contract configuration
+
+Registry loading retries network errors, HTTP 429 and 5xx responses up to three
+attempts with bounded backoff. Invalid JSON, chain-level configuration and other
+4xx responses fail immediately. Invalid individual markets are omitted with a
+warning, keeping valid markets available without using unvalidated addresses.
+There is no automatic fallback to stale bundled data for SDK transaction targets.
+
+Native yields from `/asset/{chain_id}` are matched by cToken address. Shared
+underlying metadata is resolved by API2; unresolved legacy APYs remain specific
+to each association even when symbols match. `Api.fetchNativeYields()` returns
+the `token` address alongside `symbol` and `apy`; callers must not deduplicate
+these entries by symbol. Symbol-only custom yield sources retain legacy matching.
+
+`setupChain` now fetches `/contracts/{chainId}` from its configured API URL before
+loading on-chain state. It validates schema version, chain identity, addresses,
+and each market's cToken/IRM relationships, then freezes one snapshot for the
+entire setup. Markets, plugins and optimizers use that same snapshot. Published
+markets can therefore appear without editing the bundled contract JSON or
+releasing another SDK version. The snapshot revision is available as
+`setup.contractRevision`.
+
+Deploy the API2 registry schema, backfill and endpoint before rolling this SDK
+version out to consumers. An unavailable or invalid configuration fails setup;
+there is no automatic fallback to stale bundled addresses. Offline or legacy
+callers can explicitly pass `{ contractSource: 'bundled' }` in the existing
+`setupChain` options argument. `getContractAddresses` remains a bundled-data
+helper; transaction code should use its setup snapshot.
+
+An existing setup retains its configuration until the next setup call. Draft PMD
+deployments are omitted by the API until server-side publication checks pass.
+The SDK accepts blank asset artwork while metadata is being completed.

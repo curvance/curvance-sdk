@@ -13,11 +13,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/curvance/sdk.git"
+    "url": "git+https://github.com/curvance/curvance-sdk.git"
   },
   "homepage": "https://app.curvance.com",
   "bugs": {
-    "url": "https://github.com/curvance/sdk/issues"
+    "url": "https://github.com/curvance/curvance-sdk/issues"
   },
   "author": "Austinhs",
   "description": "A SDK to explore the curvance protocol efficently & easily.",
@@ -42,7 +42,7 @@
     "test": "npm run test:transport",
     "test:all": "node --test --test-concurrency=1 --require ts-node/register tests/*.test.ts",
     "test:transaction-recovery": "node --test --test-concurrency=1 --require ts-node/register tests/transaction-recovery.integration.ts",
-    "test:transport": "node --test --test-concurrency=1 --require ts-node/register tests/contract-gas-buffer.test.ts tests/retry-fallback.test.ts tests/rpc-ranking.test.ts tests/rpc-config-shape.test.ts tests/protocol-reader.test.ts tests/setup-race.test.ts tests/query-budget.test.ts tests/conversion.test.ts tests/erc20.test.ts tests/feePolicy.test.ts tests/validation.test.ts tests/api.test.ts tests/market-refresh.test.ts tests/market-boot.test.ts tests/merkl.test.ts tests/detached-context.test.ts tests/market-get-all-indexes.test.ts tests/snapshot-multichain.test.ts tests/dex-aggregators.test.ts tests/calldata-compat.test.ts tests/leverage-math.test.ts tests/ctoken-deposits.test.ts tests/ctoken-collateral-removal.test.ts tests/ctoken-snapshot.test.ts tests/ctoken-price.test.ts tests/borrowable-helpers.test.ts tests/zapper-calldata.test.ts tests/zap-exits.test.ts tests/zap-repay.test.ts tests/optimizer-zapper.test.ts tests/leverage-vault-behavior.test.ts tests/ctoken-leverage-planning.test.ts tests/ctoken-leverage-execution.test.ts tests/market-leverage-preview.test.ts tests/market-position-health-units.test.ts tests/optimizer-reader.test.ts tests/lending-optimizer.test.ts tests/source-invariants.test.ts",
+    "test:transport": "node --test --test-concurrency=1 --require ts-node/register tests/contract-registry.test.ts tests/contract-gas-buffer.test.ts tests/retry-fallback.test.ts tests/rpc-ranking.test.ts tests/rpc-config-shape.test.ts tests/protocol-reader.test.ts tests/setup-race.test.ts tests/query-budget.test.ts tests/conversion.test.ts tests/erc20.test.ts tests/feePolicy.test.ts tests/validation.test.ts tests/api.test.ts tests/market-refresh.test.ts tests/market-boot.test.ts tests/merkl.test.ts tests/detached-context.test.ts tests/market-get-all-indexes.test.ts tests/snapshot-multichain.test.ts tests/dex-aggregators.test.ts tests/calldata-compat.test.ts tests/leverage-math.test.ts tests/ctoken-deposits.test.ts tests/ctoken-collateral-removal.test.ts tests/ctoken-snapshot.test.ts tests/ctoken-price.test.ts tests/borrowable-helpers.test.ts tests/zapper-calldata.test.ts tests/zap-exits.test.ts tests/zap-repay.test.ts tests/optimizer-zapper.test.ts tests/leverage-vault-behavior.test.ts tests/ctoken-leverage-planning.test.ts tests/ctoken-leverage-execution.test.ts tests/market-leverage-preview.test.ts tests/market-position-health-units.test.ts tests/optimizer-reader.test.ts tests/lending-optimizer.test.ts tests/source-invariants.test.ts",
     "test:fork": "node --test --test-concurrency=1 --require ts-node/register tests/fork-integration.ts tests/basic.test.ts tests/arb-basic.test.ts tests/optimizer.test.ts tests/optimizer-zap.test.ts tests/leverage.test.ts tests/zap.test.ts tests/zap-repay-fork.ts tests/zap-exits-fork.ts tests/dual-fork-switch.test.ts",
     "test:zap-repay-fork": "node tests/run-zap-repay-fork-gate.cjs",
     "test:dist-smoke": "npm run build && node tests/dist-smoke.cjs",

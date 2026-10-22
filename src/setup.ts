@@ -22,6 +22,7 @@ export interface SetupConfigSnapshot {
     assets: DeepReadonly<ChainAssetConfig>;
     services: DeepReadonly<ChainServiceConfig>;
     contracts: DeepReadonly<ReturnType<typeof getContractAddresses>>;
+    contractRevision?: string;
     readProvider: curvance_read_provider;
     signer: curvance_signer | null;
     account: address | null;
@@ -45,6 +46,8 @@ const successful_setup_results = new Map<number, {
 }>();
 
 export interface SetupChainOptions {
+    /** Defaults to registry-backed configuration. Bundled mode is an explicit offline/legacy opt-in. */
+    contractSource?: 'api' | 'bundled';
     /** Optional fee policy for SDK-initiated DEX swaps (zaps + leverage).
      *  Defaults to the chain's setup-resolved Curvance fee policy. */
     feePolicy?: FeePolicy;
@@ -72,6 +75,8 @@ function createSetupConfig(
     account: address | null,
     api_url: string,
     feePolicy: FeePolicy,
+    contracts: ReturnType<typeof getContractAddresses>,
+    contractRevision: string,
 ): SetupConfigSnapshot {
     return Object.freeze({
         chain,
@@ -83,7 +88,8 @@ function createSetupConfig(
         signer,
         account,
         provider: signer ?? readProvider,
-        contracts: deepFreeze(getContractAddresses(chain)),
+        contracts: deepFreeze(contracts),
+        contractRevision,
         api_url,
         feePolicy,
     }) as SetupConfigSnapshot;
@@ -323,6 +329,9 @@ export async function setupChain(
             );
         }
         const account = requestedAccount ?? signerAccount;
+        const registry = options.contractSource === 'bundled'
+            ? { contracts: getContractAddresses(chain), revision: 'bundled' }
+            : await Api.fetchContractConfiguration({ chain, chainId: chain_config[chain].chainId, api_url });
 
         let nextSetupConfig = createSetupConfig(
             chain,
@@ -331,6 +340,8 @@ export async function setupChain(
             account,
             api_url,
             options.feePolicy ?? NO_FEE_POLICY,
+            registry.contracts,
+            registry.revision,
         );
         validateSetupConfig(nextSetupConfig);
 
@@ -354,6 +365,8 @@ export async function setupChain(
             account,
             api_url,
             feePolicy,
+            registry.contracts,
+            registry.revision,
         );
         validateSetupConfig(nextSetupConfig);
         validateCheckerFeePolicy(nextSetupConfig, setupDaoAddress);

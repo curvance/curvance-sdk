@@ -142,7 +142,7 @@ test("Api.fetchAssets rejects insecure remote URLs before fetch", async () => {
     assert.equal(fetchCalls, 0);
 });
 
-test("Api.fetchNativeYields derives and deduplicates native APY by symbol", async () => {
+test("Api.fetchNativeYields keeps native APY attached to each cToken", async () => {
     mockJsonResponse([
         createAsset(),
         createAsset({
@@ -160,12 +160,13 @@ test("Api.fetchNativeYields derives and deduplicates native APY by symbol", asyn
     const yields = await Api.fetchNativeYields(createApiConfig());
 
     assert.deepEqual(yields, [
-        { symbol: "WMON", apy: 4.25 },
-        { symbol: "USDC", apy: 0 },
+        { symbol: "WMON", apy: 4.25, token: '0x00000000000000000000000000000000000000bb' },
+        { symbol: "wmon", apy: 4.25, token: '0x00000000000000000000000000000000000000cc' },
+        { symbol: "USDC", apy: 0, token: '0x00000000000000000000000000000000000000ee' },
     ]);
 });
 
-test("Api.fetchNativeYields warns and keeps the first conflicting symbol value", async () => {
+test("Api.fetchNativeYields preserves unresolved APY differences for tokens with the same symbol", async () => {
     const warnings: string[] = [];
     console.warn = (message?: unknown) => warnings.push(String(message));
     mockJsonResponse([
@@ -179,9 +180,11 @@ test("Api.fetchNativeYields warns and keeps the first conflicting symbol value",
 
     const yields = await Api.fetchNativeYields(createApiConfig());
 
-    assert.deepEqual(yields, [{ symbol: "WMON", apy: 4.25 }]);
-    assert.equal(warnings.length, 1);
-    assert.match(warnings[0]!, /Conflicting native APY values for WMON/i);
+    assert.deepEqual(yields, [
+        { symbol: "WMON", apy: 4.25, token: '0x00000000000000000000000000000000000000bb' },
+        { symbol: "WMON", apy: 5, token: '0x00000000000000000000000000000000000000cc' },
+    ]);
+    assert.equal(warnings.length, 0);
 });
 
 test("Api.getRewards maps API2 asset points to legacy market incentives", async () => {

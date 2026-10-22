@@ -6,6 +6,7 @@ export * from './setup';
 export * from './types';
 export * from './retry-provider';
 export * from './contracts';
+export * from './contracts/registry';
 export * from './chains';
 export * from './validation';
 export * from './feePolicy';

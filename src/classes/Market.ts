@@ -809,7 +809,7 @@ export class Market {
         const index = new Map<string, NativeYield>();
 
         for (const yieldEntry of yields) {
-            const key = yieldEntry.symbol.toUpperCase();
+            const key = yieldEntry.token ? yieldEntry.token.toLowerCase() : yieldEntry.symbol.toUpperCase();
             if (index.has(key)) {
                 throw new Error(`Duplicate native-yield symbol ${yieldEntry.symbol}.`);
             }
@@ -1416,7 +1416,7 @@ export class Market {
                     token.incentiveBorrowApy = borrowApy;
                 }
 
-                const api_yield = yieldIndex.get(token.asset.symbol.toUpperCase());
+                const api_yield = yieldIndex.get(tokenKey) ?? yieldIndex.get(token.asset.symbol.toUpperCase());
                 if(api_yield != undefined) {
                     token.nativeApy = new Decimal(api_yield.apy).div(100);
                 }

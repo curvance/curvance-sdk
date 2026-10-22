@@ -2,6 +2,7 @@ import type { SetupConfigSnapshot } from "../setup";
 import { chain_config } from "../chains";
 import { address } from "../types";
 import { fetchWithTimeout, validateApiUrl } from "../validation";
+import { validateContractConfiguration, type ContractConfiguration } from '../contracts/registry';
 
 export type IncentiveResponse = {
     market: address,
@@ -81,7 +82,7 @@ function isAssetResponse(value: unknown): value is AssetResponse {
         isFiniteNumber(row.chain_id) &&
         isNonEmptyString(row.token) &&
         isNonEmptyString(row.symbol) &&
-        isNonEmptyString(row.token_image) &&
+        typeof row.token_image === 'string' &&
         (row.market_address == undefined || isNonEmptyString(row.market_address)) &&
         typeof row.vault === "boolean" &&
         isNonNegativeFiniteNumber(row.percent_native_apy) &&
@@ -128,6 +129,31 @@ function resolveChainId(config: ApiRequestConfig): number {
 const assetRequests = new WeakMap<object, Promise<AssetResponse[]>>();
 
 export class Api {
+    static async fetchContractConfiguration(config: ApiRequestConfig): Promise<ContractConfiguration> {
+        const apiUrl = resolveValidatedApiUrl(config, 'Api.fetchContractConfiguration').replace(/\/+$/, '');
+        const chainId = resolveChainId(config);
+        for (let attempt = 0; attempt < 3; attempt++) {
+            let response: Response;
+            try {
+                response = await fetchWithTimeout(`${apiUrl}/contracts/${chainId}`);
+            } catch (error) {
+                if (attempt === 2) throw error;
+                await new Promise(resolve => setTimeout(resolve, 250 * 2 ** attempt));
+                continue;
+            }
+            if (!response.ok) {
+                if (attempt < 2 && (response.status === 429 || response.status >= 500)) {
+                    await response.body?.cancel();
+                    await new Promise(resolve => setTimeout(resolve, 250 * 2 ** attempt));
+                    continue;
+                }
+                throw new Error(`Contract configuration request failed: ${response.status}`);
+            }
+            // Invalid JSON/configuration and other 4xx responses are not transient failures.
+            return validateContractConfiguration(await response.json(), chainId);
+        }
+        throw new Error('Contract configuration request exhausted retries');
+    }
     private url: string;
     
     public constructor(config?: SetupConfigSnapshot) {
@@ -171,34 +197,35 @@ export class Api {
         return request;
     }
 
-    static async fetchNativeYields(config?: ApiRequestConfig): Promise<{ symbol: string, apy: number }[]> {
+    static async fetchNativeYields(config?: ApiRequestConfig): Promise<{ symbol: string, apy: number, token?: string }[]> {
         const resolvedConfig = config ?? resolveDefaultSetupConfig("Api.fetchNativeYields");
         if (resolveCurvanceApiServices(resolvedConfig).nativeYieldSlug == null) {
             return [];
         }
         const assets = await Api.fetchAssets(resolvedConfig);
-        const yieldsBySymbol = new Map<string, { symbol: string; apy: number }>();
+        const yieldsByToken = new Map<string, { symbol: string; apy: number; token: string }>();
 
         for (const asset of assets) {
-            const key = asset.symbol.toUpperCase();
-            const existing = yieldsBySymbol.get(key);
+            const key = asset.token.toLowerCase();
+            const existing = yieldsByToken.get(key);
             if (existing == undefined) {
-                yieldsBySymbol.set(key, {
+                yieldsByToken.set(key, {
                     symbol: asset.symbol,
                     apy: asset.percent_native_apy,
+                    token: key,
                 });
                 continue;
             }
 
             if (existing.apy !== asset.percent_native_apy) {
                 console.warn(
-                    `Conflicting native APY values for ${asset.symbol}; ` +
+                    `Conflicting native APY values for ${asset.token}; ` +
                     `using ${existing.apy} and ignoring ${asset.percent_native_apy}.`
                 );
             }
         }
 
-        return [...yieldsBySymbol.values()];
+        return [...yieldsByToken.values()];
     }
 
     static async getRewards(config?: ApiRequestConfig) {
