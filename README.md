@@ -4,6 +4,10 @@
 
 A TypeScript SDK for interacting with the Curvance protocol. It uses ethers v6 and a setup-bound cache model: `setupChain()` loads market state up front, snapshots the chain configuration it used, and returns markets whose reads are synchronous until an explicit refresh runs.
 
+## Development runtime
+
+Use Node.js 24.22.1, pinned in `.nvmrc` and `.node-version`, for SDK development and builds. Run `nvm install && nvm use` before `npm ci`, tests, or builds. Consumer applications must update their own Node runtime; installing this SDK does not update Node.
+
 ## ❯ Install
 
 ```
