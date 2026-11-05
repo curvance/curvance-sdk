@@ -5,6 +5,7 @@ const MERKL_PROXY_URL = 'https://api2.curvance.com/merkl/proxy';
 const PROTOCOL_ID = 'curvance';
 const MERKL_OPPORTUNITIES_PAGE_SIZE = 100;
 const MERKL_OPPORTUNITIES_COALESCE_MS = 30_000;
+const MERKL_CAMPAIGNS_PAGE_SIZE = 100;
 
 export type MerklChainInfo = {
     id: number;
@@ -638,6 +639,8 @@ export async function fetchMerklUserRewards({
 type FetchCampaignsParams = FetchOptions & {
     tokenSymbol: string;
     chainId?: number;
+    /** Merkl campaign status filter, e.g. `'LIVE'`. Omitted returns every status. */
+    status?: string;
 };
 
 function campaignMatchesChain(campaign: MerklCampaign, chainId: number): boolean {
@@ -655,14 +658,20 @@ function campaignMatchesChain(campaign: MerklCampaign, chainId: number): boolean
 export async function fetchMerklCampaignsBySymbol({
     tokenSymbol,
     chainId,
+    status,
     signal,
 }: FetchCampaignsParams): Promise<MerklCampaign[]> {
     const validatedChainId = validateOptionalChainId(chainId, 'Merkl campaigns chainId');
     const url = new URL(`${MERKL_API_BASE_URL}/campaigns`);
     url.searchParams.set('mainProtocolId', PROTOCOL_ID);
     url.searchParams.set('tokenSymbol', tokenSymbol);
+    // Merkl returns 20 rows by default; every Curvance campaign pays the same reward token.
+    url.searchParams.set('items', String(MERKL_CAMPAIGNS_PAGE_SIZE));
     if (validatedChainId != undefined) {
         url.searchParams.set('chainId', String(validatedChainId));
+    }
+    if (status) {
+        url.searchParams.set('status', status);
     }
 
     const response = await fetchWithTimeout(proxyMerklUrl(url), { signal: signal ?? null, cache: 'no-store' });

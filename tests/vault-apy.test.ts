@@ -106,6 +106,9 @@ test('public API normalization retains the target metadata and discovery fetches
     const campaigns = await fetchMerklVaultCampaigns({ vaultAddress: VAULT, chainId: 143, opportunities });
     assert.equal(requests.length, 2);
     assert.equal(requests[1]?.searchParams.get('tokenSymbol'), 'cWMON');
+    // All Curvance campaigns pay cWMON, so only live rows on a full page keep the target reachable.
+    assert.equal(requests[1]?.searchParams.get('status'), 'LIVE');
+    assert.equal(requests[1]?.searchParams.get('items'), '100');
     assert.equal(campaigns[0]?.targetAprConfig?.targetApr, 0.1);
     assert.equal(campaigns[0]?.endTimestamp, campaign.endTimestamp);
     assert.equal(getVaultApyBreakdown({ ...inputs, opportunities, campaigns }).totalApy.toString(), '0.1');

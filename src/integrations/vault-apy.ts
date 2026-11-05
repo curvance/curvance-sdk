@@ -59,7 +59,7 @@ export async function fetchMerklVaultCampaigns({
             reward.distributionType === TARGET_DISTRIBUTION && reward.token.symbol?.trim()
                 ? [reward.token.symbol.trim()] : [])));
     const campaigns = await Promise.all(Array.from(symbols, (tokenSymbol) =>
-        fetchMerklCampaignsBySymbol({ tokenSymbol, chainId, ...(signal ? { signal } : {}) })));
+        fetchMerklCampaignsBySymbol({ tokenSymbol, chainId, status: 'LIVE', ...(signal ? { signal } : {}) })));
     return campaigns.flat().filter((campaign) => key(campaign.targetAprConfig?.targetToken) === key(vaultAddress));
 }
 
