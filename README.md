@@ -820,6 +820,38 @@ await vault.approveZapAsset(zap, amount)
 await vault.deposit(amount, zap, account)
 ```
 
+### Vault campaign yield
+
+`getVaultApyBreakdown` combines native vault yield with Merkl HOLD rewards and eligible
+`ERC4626_TARGET_APR_WITH_MERKL` campaigns. All returned rates are fractional (`0.1` means
+10%). It preserves the native rate and reports any campaign adjustment in the reward
+breakdown. Underlying LEND rewards must not be added again.
+
+```ts
+import { fetchMerklOpportunities, fetchMerklVaultCampaigns, getVaultApyBreakdown } from "curvance"
+
+const opportunities = await fetchMerklOpportunities({ chainId: 143 })
+const campaigns = await fetchMerklVaultCampaigns({ vaultAddress, chainId: 143, opportunities })
+const yieldBreakdown = getVaultApyBreakdown({
+    vaultAddress,
+    chainId: 143,
+    nativeApy,       // Current fractional native yield, e.g. new Decimal("0.0507")
+    totalAssetsUsd,  // Current vault assets valued in USD; required for funding checks
+    opportunities,
+    campaigns,
+    accountAddress, // Optional; used to check campaign allow/deny lists
+})
+// yieldBreakdown.totalApy, .nativeApy, .merklApy, .reportedMerklApy, .rewards
+```
+
+The supported `MAX_APR` mode caps the additional reward rate to the campaign's uniform
+per-second budget at its reported reward-token price and the supplied vault TVL. The
+target is a total yield, not an additional reward. Expired, future, unsupported, or
+ineligible campaigns do not adjust the headline. Missing campaign metadata or pricing
+falls back to reported yield. Callers can catch campaign-fetch failures and pass `[]`;
+they should refresh metadata and recompute periodically so campaign expiry is reflected.
+`OptimizerReader.getOptimizerAPYBreakdown` retains its existing native/allocation semantics.
+
 ## ❯ TypeScript Types
 
 ```ts
