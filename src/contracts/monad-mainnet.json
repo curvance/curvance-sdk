@@ -344,6 +344,20 @@
         "AUSD": "0x1f5c12c9440f8c1e864b178Ff40c988E325d112d"
       }
     },
+    "PT-USDat-14JAN2027 | AUSD": {
+      "address": "0x7C6b999b99BEDD49CD666D24d56d673baC8c5878",
+      "tokens": {
+        "PT-USDat-14JAN2027": "0x06eD7EEBB5C6d599a40Fb99B6E45f21E4Cb62C7A",
+        "AUSD": "0xeA0178EeE07e0E3a8c5048B8774A68c763b98724"
+      },
+      "irms": {
+        "PT-USDat-14JAN2027": "0x6555e00ee9C8de94C28Ccb321aAF48246e08cE45",
+        "AUSD": "0x1913b69E9E9C4f60979f27deEbBF5D36F2f1F96c"
+      },
+      "plugins": {
+        "simplePositionManager": "0xE34F6500Bc075602bC407D3A76367278BE6470f8"
+      }
+    },
     "strUSD | AUSD": {
       "address": "0x3b085337249722F192061CA371eB50c6e56F51e9",
       "tokens": {
