@@ -92,6 +92,76 @@ test('a campaign already paying its maximum cannot be raised, and still reads as
     }
 });
 
+const OTHER_TOKEN = { chainId: 143, address: '0x00000000000000000000000000000000000000aa', decimals: 6, symbol: 'AUSD' };
+const rowSum = (result: ReturnType<typeof getVaultApyBreakdown>) =>
+    result.rewards.reduce((sum, reward) => sum.add(reward.apy), new Decimal(0));
+
+test('a campaign paying its own token leaves no remainder row when it counts as zero', () => {
+    // Found by fuzzing: splitting the reported rate and removing the campaign's share round apart.
+    const result = getVaultApyBreakdown({ ...inputs, nativeApy: '0.0693487', opportunities: [{
+        ...opportunity, apr: 3.5885062306188047, rewardsRecord: { breakdowns: [
+            { token: OTHER_TOKEN, value: 1750.8834665641189, maxValue: 1750.8834665641189, distributionType: 'DUTCH_AUCTION' },
+            { ...targetRow, value: 205.5244604125619, maxValue: 205.5244604125619 },
+        ] },
+    }] });
+    assert.deepEqual(result.rewards.map((reward) => reward.symbol), ['AUSD']);
+    assert.equal(rowSum(result).toString(), result.merklApy.toString());
+    assert.equal(result.totalApy.toString(), result.nativeApy.add(result.merklApy).toString());
+    assert.equal(result.campaignTargetApy, undefined);
+});
+
+test('rows still sum to the Merkl rate across reward tokens while the campaign steers', () => {
+    for (const nativeApy of ['0.03', '0.05', '0.06', '0.09']) {
+        const result = getVaultApyBreakdown({ ...inputs, nativeApy, opportunities: [withRows(
+            rows.map((row) => row.distributionType === TARGET ? row : { ...row, token: OTHER_TOKEN }))] });
+        assert.equal(rowSum(result).toString(), result.merklApy.toString(), nativeApy);
+        assert(result.rewards.every((reward) => reward.apy.gt('1e-12')), nativeApy);
+    }
+});
+
+test('a second target campaign paying the same token adds to the first', () => {
+    // A mid-week budget top-up shows up as another target row.
+    const topUp = { ...targetRow, value: targetRow.value! / 2, maxValue: targetRow.maxValue! / 2, campaignId: 'top-up' };
+    const result = getVaultApyBreakdown({ ...inputs, nativeApy: '0.01', opportunities: [withRows([...rows, topUp])] });
+    const paidWithTopUp = paid.add(topUp.value);
+    const campaignShare = (dollars: Decimal.Value) => reportedRate.mul(new Decimal(dollars).div(paidWithTopUp));
+    const other = reportedRate.sub(campaignShare(new Decimal(targetRow.value!).add(topUp.value)));
+    const funded = campaignShare(new Decimal(targetRow.maxValue!).add(topUp.maxValue));
+    // At 1% native the gap is wider than both budgets together, so the headline is their combined maximum.
+    assert(new Decimal('0.1').sub('0.01').sub(other).gt(funded));
+    assert(result.totalApy.sub(new Decimal('0.01').add(other).add(funded)).abs().lt('1e-30'));
+    assert.equal(result.campaignTargetApy?.toString(), '0.1');
+    assert.equal(rowSum(result).toString(), result.merklApy.toString());
+});
+
+test('target campaigns paying different tokens, or rows without dollars, leave the reported yield intact', () => {
+    const { value: _value, ...targetWithoutValue } = targetRow;
+    const variants = [
+        withRows([...rows, { ...targetRow, token: OTHER_TOKEN }]),
+        // A missing value is not a zero: raising the campaign from it would invent yield.
+        withRows(rows.map((row) => row.distributionType === TARGET ? targetWithoutValue : row)),
+        withRows(rows.map(({ value: _dropped, ...row }) => row.distributionType === TARGET ? targetRow : row)),
+        withRows(rows.map((row) => row.distributionType === TARGET ? { ...row, value: -1 } : row)),
+    ];
+    for (const [index, variant] of variants.entries()) {
+        for (const nativeApy of ['0.03', '0.11']) {
+            const result = getVaultApyBreakdown({ ...inputs, nativeApy, opportunities: [variant] });
+            assert.equal(result.totalApy.toString(), new Decimal(nativeApy).add(reportedRate).toString(), `variant ${index}`);
+            assert.equal(result.campaignTargetApy, undefined, `variant ${index}`);
+            assert.equal(rowSum(result).toString(), result.merklApy.toString(), `variant ${index}`);
+        }
+    }
+});
+
+test('an opportunity on which nothing is being paid is left at native yield', () => {
+    // Known limit: the campaign's maximum is only known as a multiple of what is currently paid.
+    const result = getVaultApyBreakdown({ ...inputs, nativeApy: '0.03', opportunities: [{
+        ...opportunity, apr: 0, rewardsRecord: { breakdowns: [{ ...targetRow, value: 0 }] },
+    }] });
+    assert.equal(result.totalApy.toString(), '0.03');
+    assert.equal(result.campaignTargetApy, undefined);
+});
+
 test('the funding cap depends on reward proportions, not on the reward token price', () => {
     const repriced = withRows(rows.map((row) => ({ ...row, value: row.value! * 1.57, maxValue: row.maxValue! * 1.57 })));
     const expected = getVaultApyBreakdown({ ...inputs, nativeApy: '0.04' }).totalApy;

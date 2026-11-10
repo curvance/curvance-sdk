@@ -824,8 +824,9 @@ await vault.deposit(amount, zap, account)
 
 `getVaultApyBreakdown` combines native vault yield with Merkl HOLD rewards and a live
 `ERC4626_TARGET_APR_WITH_MERKL` campaign on the vault. All returned rates are fractional
-(`0.1` means 10%). It preserves the native rate and reports any campaign adjustment in the
-reward breakdown. Underlying LEND rewards must not be added again.
+(`0.1` means 10%). It returns the native rate as supplied (a negative or non-numeric rate is
+treated as zero) and reports any campaign adjustment in the reward breakdown. Underlying
+LEND rewards must not be added again.
 
 ```ts
 import { fetchMerklOpportunities, getVaultApyBreakdown } from "curvance"
@@ -855,11 +856,24 @@ additional reward.
 Everything comes from the vault's own opportunity, so no campaign request is made:
 `maxApr` is the target, `earliestCampaignEnd` is the expiry, and `maxValue` against
 `value` on the campaign's `rewardsRecord` row gives the most the campaign can pay as a
-multiple of its current rate. The headline is left at the reported yield when the
-opportunity is not `LIVE`, has passed `earliestCampaignEnd`, reports no target campaign,
-or has another capped campaign that `maxApr` could describe. Campaign allow and deny
-lists are not visible on the opportunity and are not applied. Callers should recompute
-at `campaignEndTimestamp` so expiry is reflected.
+multiple of its current rate.
+
+The headline is left at the reported yield, with no `campaignTargetApy`, when any of
+these holds for the opportunity:
+
+- it is not `LIVE`, is identified by something other than the vault address, or has
+  passed `earliestCampaignEnd`
+- `maxApr` is missing, zero, or above 1 (which would mean percentage points)
+- it reports no target campaign row, or target rows paying different reward tokens
+- a reward row has no dollar `value`, or the rows' values sum to zero (nothing is being
+  paid, so the campaign's maximum cannot be derived)
+- another campaign on it has budget held back by a cap, which `maxApr` could describe
+
+`earliestCampaignEnd` is the first end among all the opportunity's live campaigns, so the
+adjustment can stop before the target campaign itself ends, and after a renewal it resumes
+only once Merkl reports the new campaign. Callers should recompute at
+`campaignEndTimestamp` and keep refreshing opportunities for a while afterwards. Campaign
+allow and deny lists are not visible on the opportunity and are not applied.
 `OptimizerReader.getOptimizerAPYBreakdown` retains its existing native/allocation semantics.
 
 ## ❯ TypeScript Types

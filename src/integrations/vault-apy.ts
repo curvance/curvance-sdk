@@ -6,7 +6,9 @@ import {
 } from './merkl';
 
 const TARGET_DISTRIBUTION = 'ERC4626_TARGET_APR_WITH_MERKL';
+const DUST = new Decimal('1e-12');
 const key = (value: string | null | undefined) => value?.trim().toLowerCase() ?? '';
+const tokenKey = (token: MerklRewardRecordBreakdown['token']) => key(token.address) || key(token.symbol) || 'rewards';
 
 export interface VaultRewardRate {
     address: string;
@@ -70,7 +72,9 @@ function maxBudget(reward: MerklRewardRecordBreakdown): Decimal {
  * limited to the most the campaign's budget can pay. The headline then equals the target
  * unless native yield and other rewards already exceed it, or the budget cannot cover
  * the gap. Everything is read from the vault's own opportunity, so no campaign request is
- * made. Missing or ambiguous metadata leaves the reported yield intact. Rates remain
+ * made. Missing or ambiguous metadata leaves the reported yield intact; that includes an
+ * opportunity on which Merkl reports no rewards being paid at all, because the campaign's
+ * maximum is only known as a multiple of what is currently paid. Rates remain
  * fractional and are not compounded. Underlying LEND incentives are already passed through
  * by HOLD campaigns and must not be added again. This does not change OptimizerReader's
  * raw/native APY model.
@@ -88,7 +92,8 @@ export function getVaultApyBreakdown({
     const rewards = new Map<string, VaultRewardRate>();
     const primaryRates = new Map<string, Decimal>();
     const addReward = (address: string, symbol: string, apy: Decimal, opportunity: MerklOpportunity) => {
-        if (!apy.gt(0)) return;
+        // Also drops the rounding remainder a zero-value reward can be left with when it is split last.
+        if (apy.lt(DUST)) return;
         const rewardKey = key(address) || key(symbol) || 'rewards';
         const existing = rewards.get(rewardKey);
         if (existing) {
@@ -144,6 +149,11 @@ export function getVaultApyBreakdown({
         const targetRewards = breakdowns.filter((reward) => reward.distributionType === TARGET_DISTRIBUTION);
         const targetReward = targetRewards[0];
         if (!targetReward) continue;
+        // Every row's dollars feed the proportions below, and the whole adjustment lands on
+        // one reward token. A row without dollars, or target campaigns paying different
+        // tokens, cannot be restated without guessing.
+        if (breakdowns.some((reward) => !(typeof reward.value === 'number' && reward.value >= 0))) continue;
+        if (new Set(targetRewards.map((reward) => tokenKey(reward.token))).size > 1) continue;
         // `maxApr` describes whichever campaign is capped. Only trust it as this target when
         // no other campaign on the opportunity has budget held back by a cap of its own.
         if (breakdowns.some((reward) => reward.distributionType !== TARGET_DISTRIBUTION &&
@@ -162,19 +172,25 @@ export function getVaultApyBreakdown({
         const fundedCampaign = share(targetRewards.reduce((sum, reward) => sum.add(maxBudget(reward)), new Decimal(0)));
         const otherMerkl = merklApy.sub(reportedCampaign);
         const campaign = Decimal.min(Decimal.max(0, target.sub(native).sub(otherMerkl)), fundedCampaign);
-        const change = campaign.sub(reportedCampaign);
+        const difference = campaign.sub(reportedCampaign);
+        const change = difference.abs().lt(DUST) ? new Decimal(0) : difference;
+        const rewardKey = tokenKey(targetReward.token);
         if (change.gt(0)) {
             addReward(targetReward.token.address ?? '', targetReward.token.symbol ?? '', change, opportunity);
         } else if (change.lt(0)) {
-            // The campaign's reported rate is part of this token's row, so the row cannot go below zero.
-            const rewardKey = key(targetReward.token.address) || key(targetReward.token.symbol) || 'rewards';
+            // The campaign's reported rate is part of this token's row.
             const row = rewards.get(rewardKey);
-            if (row) {
-                row.apy = row.apy.add(change);
-                if (!row.apy.gt(0)) rewards.delete(rewardKey);
-            }
+            if (row) row.apy = row.apy.add(change);
         }
         merklApy = merklApy.add(change);
+        // The row was split off the reported rate one way and the campaign's share is removed
+        // another, so the two can round apart and leave a remainder far below any displayable
+        // rate, of either sign. Fold it away so the rows still sum to merklApy.
+        const row = rewards.get(rewardKey);
+        if (row && row.apy.lt(DUST)) {
+            merklApy = merklApy.sub(row.apy);
+            rewards.delete(rewardKey);
+        }
         if (!campaign.gt(0)) continue;
         campaignTargetApy = Decimal.max(campaignTargetApy ?? 0, target);
         if (end != null) campaignEndTimestamp = Math.min(campaignEndTimestamp ?? end, end);
