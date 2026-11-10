@@ -5,7 +5,6 @@ const MERKL_PROXY_URL = 'https://api2.curvance.com/merkl/proxy';
 const PROTOCOL_ID = 'curvance';
 const MERKL_OPPORTUNITIES_PAGE_SIZE = 100;
 const MERKL_OPPORTUNITIES_COALESCE_MS = 30_000;
-const MERKL_CAMPAIGNS_PAGE_SIZE = 100;
 
 export type MerklChainInfo = {
     id: number;
@@ -41,7 +40,10 @@ export type MerklRewardRecordToken = Partial<MerklRewardToken>;
 export type MerklRewardRecordBreakdown = {
     token: MerklRewardRecordToken;
     amount?: string;
+    /** Dollar value of the campaign's daily rewards at its current pace. Not a rate. */
     value?: number;
+    /** Dollar value of the most the campaign can pay per day. Exceeds `value` only for capped campaigns. */
+    maxValue?: number;
     distributionType?: string;
     onChainCampaignId?: string;
     id?: string;
@@ -74,21 +76,6 @@ export type MerklCampaign = {
     chain: MerklChainInfo;
     distributionChain?: MerklChainInfo;
     rewardToken: MerklRewardToken;
-    opportunityId?: string;
-    startTimestamp?: number;
-    endTimestamp?: number;
-    amount?: string;
-    distributionType?: string;
-    /** Validated settings for capped ERC-4626 total-yield campaigns. */
-    targetAprConfig?: {
-        targetToken: string;
-        /** Fractional total rate: 0.1 means 10%, including native yield and other rewards. */
-        targetApr: number;
-        mode: 'MAX_APR';
-        lookbackWindow: number;
-        whitelist: string[];
-        blacklist: string[];
-    };
 };
 
 type FetchOptions = {
@@ -98,6 +85,10 @@ type FetchOptions = {
 export type MerklOpportunity = {
     id?: string;
     status?: string;
+    /** Fractional cap or target set by a capped campaign: 0.1 means 10%. Unlike `apr`, not percentage points. */
+    maxApr?: number;
+    /** Unix seconds at which the first of the opportunity's live campaigns ends. */
+    earliestCampaignEnd?: number;
     name: string;
     apr: number;
     action?: 'LEND' | 'BORROW' | string;
@@ -108,9 +99,6 @@ export type MerklOpportunity = {
     computeChainId?: number;
     distributionChainId?: number;
     tokens: { address: string; symbol: string }[];
-    aprRecord?: {
-        breakdowns: { identifier: string; value: number }[];
-    };
     rewardsRecord?: {
         id?: string;
         total?: number;
@@ -358,44 +346,6 @@ function normalizeCampaign(value: unknown): MerklCampaign | null {
     if (distributionChain != undefined) {
         campaign.distributionChain = distributionChain;
     }
-    if (isString(value.opportunityId)) campaign.opportunityId = value.opportunityId;
-    if (Number.isSafeInteger(value.startTimestamp) && (value.startTimestamp as number) >= 0) {
-        campaign.startTimestamp = value.startTimestamp as number;
-    }
-    if (Number.isSafeInteger(value.endTimestamp) && (value.endTimestamp as number) > 0) {
-        campaign.endTimestamp = value.endTimestamp as number;
-    }
-    if (isString(value.amount) && /^\d+$/.test(value.amount)) campaign.amount = value.amount;
-    if (isString(value.distributionType)) campaign.distributionType = value.distributionType;
-    const params = isRecord(value.params) ? value.params : undefined;
-    const method = isRecord(params?.distributionMethodParameters)
-        ? params.distributionMethodParameters : undefined;
-    const settings = isRecord(method?.distributionSettings) ? method.distributionSettings : undefined;
-    const targetApr = isString(settings?.targetAPR) || isFiniteNumber(settings?.targetAPR)
-        ? Number(settings.targetAPR) : NaN;
-    const validAddressList = (list: unknown): list is string[] =>
-        Array.isArray(list) && list.every((item) => isString(item) && isAddressLike(item));
-    if (
-        value.distributionType === 'ERC4626_TARGET_APR_WITH_MERKL' &&
-        method?.distributionMethod === value.distributionType &&
-        settings?.mode === 'MAX_APR' &&
-        isString(settings.targetToken) && isAddressLike(settings.targetToken) &&
-        params?.targetToken === settings.targetToken &&
-        Number.isFinite(targetApr) && targetApr > 0 &&
-        Number.isSafeInteger(settings.lookbackWindow) && (settings.lookbackWindow as number) > 0 &&
-        settings.rewardTokenPricing === true && settings.targetTokenPricing === true &&
-        validAddressList(params.whitelist) && validAddressList(params.blacklist) &&
-        Array.isArray(params.hooks) && params.hooks.length === 0
-    ) {
-        campaign.targetAprConfig = {
-            targetToken: settings.targetToken,
-            targetApr,
-            mode: 'MAX_APR',
-            lookbackWindow: settings.lookbackWindow as number,
-            whitelist: params.whitelist,
-            blacklist: params.blacklist,
-        };
-    }
 
     return campaign;
 }
@@ -444,6 +394,7 @@ function normalizeRewardRecordBreakdown(value: unknown): MerklRewardRecordBreakd
     const breakdown: MerklRewardRecordBreakdown = { token };
     if (isString(value.amount)) breakdown.amount = value.amount;
     if (isFiniteNumber(value.value)) breakdown.value = value.value;
+    if (isFiniteNumber(value.maxValue)) breakdown.maxValue = value.maxValue;
     if (isString(value.distributionType)) breakdown.distributionType = value.distributionType;
     if (isString(value.onChainCampaignId)) breakdown.onChainCampaignId = value.onChainCampaignId;
     if (isString(value.id)) breakdown.id = value.id;
@@ -491,12 +442,12 @@ function normalizeMerklOpportunity(value: unknown): MerklOpportunity | null {
     };
     if (isString(value.id)) opportunity.id = value.id;
     if (isString(value.status)) opportunity.status = value.status;
-    if (isRecord(value.aprRecord) && Array.isArray(value.aprRecord.breakdowns)) {
-        opportunity.aprRecord = {
-            breakdowns: value.aprRecord.breakdowns.flatMap((row) =>
-                isRecord(row) && isString(row.identifier) && isNonnegativeFiniteNumber(row.value)
-                    ? [{ identifier: row.identifier, value: row.value }] : []),
-        };
+    if (isNonnegativeFiniteNumber(value.maxApr)) opportunity.maxApr = value.maxApr;
+    // Merkl sends timestamps on opportunities as decimal strings.
+    const earliestCampaignEnd = isString(value.earliestCampaignEnd) && /^\d+$/.test(value.earliestCampaignEnd)
+        ? Number(value.earliestCampaignEnd) : value.earliestCampaignEnd;
+    if (Number.isSafeInteger(earliestCampaignEnd) && (earliestCampaignEnd as number) > 0) {
+        opportunity.earliestCampaignEnd = earliestCampaignEnd as number;
     }
     if (value.action != undefined) {
         if (!isString(value.action)) {
@@ -639,8 +590,6 @@ export async function fetchMerklUserRewards({
 type FetchCampaignsParams = FetchOptions & {
     tokenSymbol: string;
     chainId?: number;
-    /** Merkl campaign status filter, e.g. `'LIVE'`. Omitted returns every status. */
-    status?: string;
 };
 
 function campaignMatchesChain(campaign: MerklCampaign, chainId: number): boolean {
@@ -658,20 +607,14 @@ function campaignMatchesChain(campaign: MerklCampaign, chainId: number): boolean
 export async function fetchMerklCampaignsBySymbol({
     tokenSymbol,
     chainId,
-    status,
     signal,
 }: FetchCampaignsParams): Promise<MerklCampaign[]> {
     const validatedChainId = validateOptionalChainId(chainId, 'Merkl campaigns chainId');
     const url = new URL(`${MERKL_API_BASE_URL}/campaigns`);
     url.searchParams.set('mainProtocolId', PROTOCOL_ID);
     url.searchParams.set('tokenSymbol', tokenSymbol);
-    // Merkl returns 20 rows by default; every Curvance campaign pays the same reward token.
-    url.searchParams.set('items', String(MERKL_CAMPAIGNS_PAGE_SIZE));
     if (validatedChainId != undefined) {
         url.searchParams.set('chainId', String(validatedChainId));
-    }
-    if (status) {
-        url.searchParams.set('status', status);
     }
 
     const response = await fetchWithTimeout(proxyMerklUrl(url), { signal: signal ?? null, cache: 'no-store' });
