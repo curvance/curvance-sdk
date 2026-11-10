@@ -15,6 +15,10 @@ const rows = opportunity.rewardsRecord!.breakdowns!;
 const inputs = { vaultAddress: VAULT, chainId: 143, nativeApy: '0.05', opportunities: [opportunity], nowTimestamp: NOW };
 const reportedRate = new Decimal(opportunity.apr).div(100);
 const reported = new Decimal(inputs.nativeApy).add(reportedRate);
+const paid = rows.reduce((sum, row) => sum.add(row.value!), new Decimal(0));
+const targetRow = rows.find((row) => row.distributionType === TARGET)!;
+// The part of the reported rate that does not come from the target campaign.
+const otherRate = reportedRate.sub(reportedRate.mul(new Decimal(targetRow.value!).div(paid)));
 const withRows = (breakdowns: typeof rows): MerklOpportunity => ({
     ...opportunity, rewardsRecord: { ...opportunity.rewardsRecord, breakdowns },
 });
@@ -39,21 +43,53 @@ test('does not double count underlying LEND rewards or repeated opportunities', 
     assert.equal(result.reportedMerklApy.toString(), reportedRate.toString());
 });
 
-test('keeps higher reported yields, and does not add the whole 10% on top', () => {
+test('clamps down to the target when the reported sum has drifted above it', () => {
+    // Native yield has risen since Merkl set the campaign rate: the plain sum is about 10.2%.
+    const result = getVaultApyBreakdown({ ...inputs, nativeApy: '0.055' });
+    assert(new Decimal('0.055').add(reportedRate).gt('0.1'));
+    assert.equal(result.totalApy.toString(), '0.1');
+    assert.equal(result.reportedMerklApy.toString(), reportedRate.toString());
+    assert.equal(result.merklApy.toString(), '0.045');
+    assert.equal(result.rewards.length, 1);
+    assert.equal(result.rewards[0]?.apy.toString(), '0.045');
+    assert.equal(result.campaignTargetApy?.toString(), '0.1');
+    assert.equal(result.campaignEndTimestamp, END);
+});
+
+test('shows native yield plus other rewards once they exceed the target without the campaign', () => {
     const result = getVaultApyBreakdown({ ...inputs, nativeApy: '0.11' });
-    assert.equal(result.totalApy.toString(), new Decimal('0.11').add(reportedRate).toString());
+    assert.equal(result.totalApy.toString(), new Decimal('0.11').add(otherRate).toString());
+    assert.equal(result.rewards.length, 1);
+    assert.equal(result.rewards[0]?.apy.toString(), otherRate.toString());
+    // The campaign pays nothing at this native yield, so it is not presented as a target.
     assert.equal(result.campaignTargetApy, undefined);
     assert.equal(result.campaignEndTimestamp, undefined);
 });
 
-test('caps the adjustment to the budget the target campaign has not yet paid out', () => {
+test('removes the reward row when the campaign was the only reward and pays nothing', () => {
+    const result = getVaultApyBreakdown({ ...inputs, nativeApy: '0.11', opportunities: [withRows([targetRow])] });
+    assert.equal(result.totalApy.toString(), '0.11');
+    assert.equal(result.merklApy.toString(), '0');
+    assert.deepEqual(result.rewards, []);
+});
+
+test('caps the campaign at the most its budget can pay', () => {
     const result = getVaultApyBreakdown({ ...inputs, nativeApy: '0.04' });
-    const target = rows.find((row) => row.distributionType === TARGET)!;
-    const paid = rows.reduce((sum, row) => sum.add(row.value!), new Decimal(0));
-    const headroom = reportedRate.mul(new Decimal(target.maxValue!).sub(target.value!)).div(paid);
+    const funded = reportedRate.mul(new Decimal(targetRow.maxValue!).div(paid));
     assert(result.totalApy.lt('0.1'));
-    assert.equal(result.totalApy.toString(), new Decimal('0.04').add(reportedRate).add(headroom).toString());
+    assert.equal(result.totalApy.toString(), new Decimal('0.04').add(otherRate).add(funded).toString());
     assert.equal(result.campaignTargetApy?.toString(), '0.1');
+});
+
+test('a campaign already paying its maximum cannot be raised, and still reads as a target', () => {
+    for (const capped of [
+        withRows(rows.map((row) => ({ ...row, maxValue: row.value! }))),
+        withRows(rows.map(({ maxValue: _maxValue, ...row }) => row)),
+    ]) {
+        const result = getVaultApyBreakdown({ ...inputs, opportunities: [capped] });
+        assert.equal(result.totalApy.toString(), reported.toString());
+        assert.equal(result.campaignTargetApy?.toString(), '0.1');
+    }
 });
 
 test('the funding cap depends on reward proportions, not on the reward token price', () => {
@@ -80,8 +116,6 @@ test('expired, unconfirmed, ambiguous, or incomplete targets leave the reported 
         // Another capped campaign could be the one `maxApr` describes.
         { opportunities: [withRows(rows.map((row) =>
             row.distributionType === TARGET ? row : { ...row, maxValue: row.value! + 1 }))] },
-        { opportunities: [withRows(rows.map(({ maxValue: _maxValue, ...row }) => row))] },
-        { opportunities: [withRows(rows.map((row) => ({ ...row, maxValue: row.value! })))] },
         { opportunities: [withRows(rows.map((row) => ({ ...row, value: 0 })))] },
     ];
     for (const [index, variant] of variants.entries()) {
@@ -108,8 +142,9 @@ test('rejects unrelated HOLD opportunities and preserves unlabelled reward rates
         { ...opportunity, id: 'other-vault', identifier: 'other', tokens: [] },
         { ...opportunity, id: 'unknown-reward', apr: 1, rewardsRecord: { breakdowns: [] } },
     ] });
-    assert.equal(result.totalApy.toString(), reported.add('0.01').toString());
-    assert.equal(result.campaignTargetApy, undefined);
+    // Only the extra 1% is counted on top of the fixture, and the campaign nets it off like any other reward.
+    assert.equal(result.reportedMerklApy.toString(), reportedRate.add('0.01').toString());
+    assert.equal(result.totalApy.toString(), '0.1');
     assert.equal(result.rewards.find((reward) => reward.symbol === 'Rewards')?.apy.toString(), '0.01');
     assert.equal(result.rewards.reduce((sum, reward) => sum.add(reward.apy), new Decimal(0)).toString(), result.merklApy.toString());
 });

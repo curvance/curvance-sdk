@@ -22,9 +22,9 @@ export interface VaultApyBreakdown {
     merklApy: Decimal;
     totalApy: Decimal;
     rewards: VaultRewardRate[];
-    /** Present only when a live, funded target campaign increases the headline. */
+    /** Present only while a live target campaign contributes to the headline. */
     campaignTargetApy?: Decimal;
-    /** Unix seconds after which the increase no longer applies. Set with `campaignTargetApy` when Merkl reports it. */
+    /** Unix seconds after which that campaign no longer applies. Set with `campaignTargetApy` when Merkl reports it. */
     campaignEndTimestamp?: number;
 }
 
@@ -54,22 +54,26 @@ function nonnegative(value: Decimal.Value | undefined): Decimal {
     }
 }
 
-/** Daily reward dollars a campaign could still add before reaching its cap. */
-function unusedBudget(reward: MerklRewardRecordBreakdown): Decimal {
-    return Decimal.max(0, nonnegative(reward.maxValue).sub(nonnegative(reward.value)));
+/** Daily reward dollars a campaign pays at most: its cap, or its current pace when uncapped. */
+function maxBudget(reward: MerklRewardRecordBreakdown): Decimal {
+    return Decimal.max(nonnegative(reward.maxValue), nonnegative(reward.value));
 }
 
 /**
- * Current native yield plus HOLD rewards, adjusted toward an active total-APR target.
+ * Current native yield plus HOLD rewards, with an active total-APR target campaign
+ * restated at the current native yield.
  *
  * A target campaign pays `max(target - vault yield - other Merkl rewards, 0)`, where Merkl
  * measures vault yield over a lookback window. Its reported rate therefore trails the
- * current native yield. The adjustment closes that gap, limited to the share of the
- * campaign's budget that Merkl reports as not yet paid out. Everything is read from the
- * vault's own opportunity, so no campaign request is made. Missing or ambiguous metadata
- * leaves the reported yield intact. Rates remain fractional and are not compounded.
- * Underlying LEND incentives are already passed through by HOLD campaigns and must
- * not be added again. This does not change OptimizerReader's raw/native APY model.
+ * current native yield, and the plain sum drifts above or below the target. This replaces
+ * the reported campaign rate with the same formula evaluated at the current native yield,
+ * limited to the most the campaign's budget can pay. The headline then equals the target
+ * unless native yield and other rewards already exceed it, or the budget cannot cover
+ * the gap. Everything is read from the vault's own opportunity, so no campaign request is
+ * made. Missing or ambiguous metadata leaves the reported yield intact. Rates remain
+ * fractional and are not compounded. Underlying LEND incentives are already passed through
+ * by HOLD campaigns and must not be added again. This does not change OptimizerReader's
+ * raw/native APY model.
  */
 export function getVaultApyBreakdown({
     vaultAddress, chainId, nativeApy, opportunities, nowTimestamp = Math.floor(Date.now() / 1000),
@@ -142,8 +146,8 @@ export function getVaultApyBreakdown({
         if (!targetReward) continue;
         // `maxApr` describes whichever campaign is capped. Only trust it as this target when
         // no other campaign on the opportunity has budget held back by a cap of its own.
-        if (breakdowns.some((reward) =>
-            reward.distributionType !== TARGET_DISTRIBUTION && unusedBudget(reward).gt(0))) continue;
+        if (breakdowns.some((reward) => reward.distributionType !== TARGET_DISTRIBUTION &&
+            maxBudget(reward).gt(nonnegative(reward.value)))) continue;
         // A fraction; a value above 1 would mean the unit changed to percentage points.
         const target = nonnegative(opportunity.maxApr);
         if (!target.gt(0) || target.gt(1)) continue;
@@ -151,13 +155,27 @@ export function getVaultApyBreakdown({
         // result does not depend on the reward token's price or on a separate TVL figure.
         const paid = breakdowns.reduce((sum, reward) => sum.add(nonnegative(reward.value)), new Decimal(0));
         if (!paid.gt(0)) continue;
-        const unused = targetRewards.reduce((sum, reward) => sum.add(unusedBudget(reward)), new Decimal(0));
-        const fundedHeadroom = nonnegative(opportunity.apr).div(100).mul(unused).div(paid);
-        const shortfall = Decimal.max(0, target.sub(native).sub(merklApy));
-        const topUp = Decimal.min(shortfall, fundedHeadroom);
-        if (!topUp.gt(0)) continue;
-        addReward(targetReward.token.address ?? '', targetReward.token.symbol ?? '', topUp, opportunity);
-        merklApy = merklApy.add(topUp);
+        const rate = nonnegative(opportunity.apr).div(100);
+        const share = (dollars: Decimal) => rate.mul(dollars.div(paid));
+        const reportedCampaign = share(targetRewards.reduce(
+            (sum, reward) => sum.add(nonnegative(reward.value)), new Decimal(0)));
+        const fundedCampaign = share(targetRewards.reduce((sum, reward) => sum.add(maxBudget(reward)), new Decimal(0)));
+        const otherMerkl = merklApy.sub(reportedCampaign);
+        const campaign = Decimal.min(Decimal.max(0, target.sub(native).sub(otherMerkl)), fundedCampaign);
+        const change = campaign.sub(reportedCampaign);
+        if (change.gt(0)) {
+            addReward(targetReward.token.address ?? '', targetReward.token.symbol ?? '', change, opportunity);
+        } else if (change.lt(0)) {
+            // The campaign's reported rate is part of this token's row, so the row cannot go below zero.
+            const rewardKey = key(targetReward.token.address) || key(targetReward.token.symbol) || 'rewards';
+            const row = rewards.get(rewardKey);
+            if (row) {
+                row.apy = row.apy.add(change);
+                if (!row.apy.gt(0)) rewards.delete(rewardKey);
+            }
+        }
+        merklApy = merklApy.add(change);
+        if (!campaign.gt(0)) continue;
         campaignTargetApy = Decimal.max(campaignTargetApy ?? 0, target);
         if (end != null) campaignEndTimestamp = Math.min(campaignEndTimestamp ?? end, end);
     }

@@ -838,19 +838,24 @@ const yieldBreakdown = getVaultApyBreakdown({
     opportunities,
 })
 // yieldBreakdown.totalApy, .nativeApy, .merklApy, .reportedMerklApy, .rewards
-// yieldBreakdown.campaignTargetApy and .campaignEndTimestamp are set only when the
-// target campaign raises the headline.
+// yieldBreakdown.campaignTargetApy and .campaignEndTimestamp are set only while the
+// target campaign contributes to the headline.
 ```
 
 A target campaign pays `max(target - vault yield - other Merkl rewards, 0)`, with vault
 yield measured by Merkl over a lookback window, so its reported rate trails the current
-native yield. The adjustment closes that gap. The target is a total yield, not an
+native yield and the plain sum drifts above or below the target. `getVaultApyBreakdown`
+replaces the reported campaign rate with that formula evaluated at the supplied native
+yield, limited to the most the campaign's budget can pay. `totalApy` therefore equals the
+target, in both directions, except in two cases: native yield and other rewards already
+exceed the target (the campaign then counts as zero), or the budget cannot cover the gap.
+`reportedMerklApy` keeps Merkl's unadjusted figure. The target is a total yield, not an
 additional reward.
 
 Everything comes from the vault's own opportunity, so no campaign request is made:
-`maxApr` is the target, `earliestCampaignEnd` is the expiry, and the gap between
-`maxValue` and `value` on the campaign's `rewardsRecord` row is the budget not yet paid
-out, which caps the adjustment. The headline is left at the reported yield when the
+`maxApr` is the target, `earliestCampaignEnd` is the expiry, and `maxValue` against
+`value` on the campaign's `rewardsRecord` row gives the most the campaign can pay as a
+multiple of its current rate. The headline is left at the reported yield when the
 opportunity is not `LIVE`, has passed `earliestCampaignEnd`, reports no target campaign,
 or has another capped campaign that `maxApr` could describe. Campaign allow and deny
 lists are not visible on the opportunity and are not applied. Callers should recompute
