@@ -1,0 +1,105 @@
+{
+  "opportunity": {
+    "id": "8168199074106159565",
+    "chainId": 143,
+    "type": "ERC20LOGPROCESSOR",
+    "identifier": "0xaD663aC84052b52BE4ed1b27BA416505e84a00Bf",
+    "name": "Hold High Yield AUSD Vault (hyAUSD)",
+    "status": "LIVE",
+    "action": "HOLD",
+    "apr": 4.716651369747798,
+    "tvl": 10283283.046299681,
+    "dailyRewards": 1328.8400243877995,
+    "maxDailyRewards": 1623.97508733446,
+    "maxApr": 0.1,
+    "liveCampaigns": 3,
+    "earliestCampaignStart": "1793815200",
+    "earliestCampaignEnd": "1794420000",
+    "latestCampaignEnd": "1794420000",
+    "tokens": [
+      {
+        "address": "0xaD663aC84052b52BE4ed1b27BA416505e84a00Bf",
+        "symbol": "hyAUSD"
+      }
+    ],
+    "aprRecord": {
+      "cumulated": 4.716651369747798,
+      "timestamp": "1794268800",
+      "breakdowns": [
+        {
+          "distributionType": "ERC4626_TARGET_APR_WITH_MERKL",
+          "identifier": "0xa202555cb791fcd72957a7445942337783a4c02b1b44e2a8f0577e5c987d02b7",
+          "type": "CAMPAIGN",
+          "value": 2.912501388887859,
+          "timestamp": "1794268800"
+        },
+        {
+          "distributionType": "DUTCH_AUCTION",
+          "identifier": "11405359489791013897",
+          "type": "CAMPAIGN",
+          "value": 1.0825036587550207,
+          "timestamp": "1794268800"
+        },
+        {
+          "distributionType": "DUTCH_AUCTION",
+          "identifier": "3021286719857209612",
+          "type": "CAMPAIGN",
+          "value": 0.7216463221049186,
+          "timestamp": "1794268800"
+        }
+      ]
+    },
+    "rewardsRecord": {
+      "id": "7603107222718315273",
+      "total": 1328.8400243877995,
+      "timestamp": "1794268800",
+      "breakdowns": [
+        {
+          "token": {
+            "chainId": 143,
+            "address": "0xE01d426B589c7834a5F6B20D7e992A705d3c22ED",
+            "decimals": 18,
+            "symbol": "cWMON"
+          },
+          "amount": "11742116581108816543744",
+          "maxAmount": "11742116581108816543744",
+          "value": 203.31214690685078,
+          "maxValue": 203.31214690685078,
+          "distributionType": "DUTCH_AUCTION",
+          "onChainCampaignId": "3021286719857209612",
+          "campaignId": "9371554841465787043"
+        },
+        {
+          "token": {
+            "chainId": 143,
+            "address": "0xE01d426B589c7834a5F6B20D7e992A705d3c22ED",
+            "decimals": 18,
+            "symbol": "cWMON"
+          },
+          "amount": "47390154885847438065664",
+          "maxAmount": "64435424285714290835456",
+          "value": 820.5500316349259,
+          "maxValue": 1115.6850945815866,
+          "distributionType": "ERC4626_TARGET_APR_WITH_MERKL",
+          "onChainCampaignId": "0xa202555cb791fcd72957a7445942337783a4c02b1b44e2a8f0577e5c987d02b7",
+          "campaignId": "3144739068531695528"
+        },
+        {
+          "token": {
+            "chainId": 143,
+            "address": "0xE01d426B589c7834a5F6B20D7e992A705d3c22ED",
+            "decimals": 18,
+            "symbol": "cWMON"
+          },
+          "amount": "17613730783238140461056",
+          "maxAmount": "17613730783238140461056",
+          "value": 304.97784584602283,
+          "maxValue": 304.97784584602283,
+          "distributionType": "DUTCH_AUCTION",
+          "onChainCampaignId": "11405359489791013897",
+          "campaignId": "13090663667533692465"
+        }
+      ]
+    }
+  }
+}

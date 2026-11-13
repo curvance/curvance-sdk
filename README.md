@@ -820,6 +820,62 @@ await vault.approveZapAsset(zap, amount)
 await vault.deposit(amount, zap, account)
 ```
 
+### Vault campaign yield
+
+`getVaultApyBreakdown` combines native vault yield with Merkl HOLD rewards and a live
+`ERC4626_TARGET_APR_WITH_MERKL` campaign on the vault. All returned rates are fractional
+(`0.1` means 10%). It returns the native rate as supplied (a negative or non-numeric rate is
+treated as zero) and reports any campaign adjustment in the reward breakdown. Underlying
+LEND rewards must not be added again.
+
+```ts
+import { fetchMerklOpportunities, getVaultApyBreakdown } from "curvance"
+
+const opportunities = await fetchMerklOpportunities({ chainId: 143 })
+const yieldBreakdown = getVaultApyBreakdown({
+    vaultAddress,
+    chainId: 143,
+    nativeApy,       // Current fractional native yield, e.g. new Decimal("0.0507")
+    opportunities,
+})
+// yieldBreakdown.totalApy, .nativeApy, .merklApy, .reportedMerklApy, .rewards
+// yieldBreakdown.campaignTargetApy and .campaignEndTimestamp are set only while the
+// target campaign contributes to the headline.
+```
+
+A target campaign pays `max(target - vault yield - other Merkl rewards, 0)`, with vault
+yield measured by Merkl over a lookback window, so its reported rate trails the current
+native yield and the plain sum drifts above or below the target. `getVaultApyBreakdown`
+replaces the reported campaign rate with that formula evaluated at the supplied native
+yield, limited to the most the campaign's budget can pay. `totalApy` therefore equals the
+target, in both directions, except in two cases: native yield and other rewards already
+exceed the target (the campaign then counts as zero), or the budget cannot cover the gap.
+`reportedMerklApy` keeps Merkl's unadjusted figure. The target is a total yield, not an
+additional reward.
+
+Everything comes from the vault's own opportunity, so no campaign request is made:
+`maxApr` is the target, `earliestCampaignEnd` is the expiry, and `maxValue` against
+`value` on the campaign's `rewardsRecord` row gives the most the campaign can pay as a
+multiple of its current rate.
+
+The headline is left at the reported yield, with no `campaignTargetApy`, when any of
+these holds for the opportunity:
+
+- it is not `LIVE`, is identified by something other than the vault address, or has
+  passed `earliestCampaignEnd`
+- `maxApr` is missing, zero, or above 1 (which would mean percentage points)
+- it reports no target campaign row, or target rows paying different reward tokens
+- a reward row has no dollar `value`, or the rows' values sum to zero (nothing is being
+  paid, so the campaign's maximum cannot be derived)
+- another campaign on it has budget held back by a cap, which `maxApr` could describe
+
+`earliestCampaignEnd` is the first end among all the opportunity's live campaigns, so the
+adjustment can stop before the target campaign itself ends, and after a renewal it resumes
+only once Merkl reports the new campaign. Callers should recompute at
+`campaignEndTimestamp` and keep refreshing opportunities for a while afterwards. Campaign
+allow and deny lists are not visible on the opportunity and are not applied.
+`OptimizerReader.getOptimizerAPYBreakdown` retains its existing native/allocation semantics.
+
 ## ❯ TypeScript Types
 
 ```ts

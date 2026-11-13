@@ -40,7 +40,10 @@ export type MerklRewardRecordToken = Partial<MerklRewardToken>;
 export type MerklRewardRecordBreakdown = {
     token: MerklRewardRecordToken;
     amount?: string;
+    /** Dollar value of the campaign's daily rewards at its current pace. Not a rate. */
     value?: number;
+    /** Dollar value of the most the campaign can pay per day. Exceeds `value` only for capped campaigns. */
+    maxValue?: number;
     distributionType?: string;
     onChainCampaignId?: string;
     id?: string;
@@ -80,6 +83,12 @@ type FetchOptions = {
 };
 
 export type MerklOpportunity = {
+    id?: string;
+    status?: string;
+    /** Fractional cap or target set by a capped campaign: 0.1 means 10%. Unlike `apr`, not percentage points. */
+    maxApr?: number;
+    /** Unix seconds at which the first of the opportunity's live campaigns ends. */
+    earliestCampaignEnd?: number;
     name: string;
     apr: number;
     action?: 'LEND' | 'BORROW' | string;
@@ -385,6 +394,7 @@ function normalizeRewardRecordBreakdown(value: unknown): MerklRewardRecordBreakd
     const breakdown: MerklRewardRecordBreakdown = { token };
     if (isString(value.amount)) breakdown.amount = value.amount;
     if (isFiniteNumber(value.value)) breakdown.value = value.value;
+    if (isFiniteNumber(value.maxValue)) breakdown.maxValue = value.maxValue;
     if (isString(value.distributionType)) breakdown.distributionType = value.distributionType;
     if (isString(value.onChainCampaignId)) breakdown.onChainCampaignId = value.onChainCampaignId;
     if (isString(value.id)) breakdown.id = value.id;
@@ -430,6 +440,15 @@ function normalizeMerklOpportunity(value: unknown): MerklOpportunity | null {
         type: value.type,
         tokens,
     };
+    if (isString(value.id)) opportunity.id = value.id;
+    if (isString(value.status)) opportunity.status = value.status;
+    if (isNonnegativeFiniteNumber(value.maxApr)) opportunity.maxApr = value.maxApr;
+    // Merkl sends timestamps on opportunities as decimal strings.
+    const earliestCampaignEnd = isString(value.earliestCampaignEnd) && /^\d+$/.test(value.earliestCampaignEnd)
+        ? Number(value.earliestCampaignEnd) : value.earliestCampaignEnd;
+    if (Number.isSafeInteger(earliestCampaignEnd) && (earliestCampaignEnd as number) > 0) {
+        opportunity.earliestCampaignEnd = earliestCampaignEnd as number;
+    }
     if (value.action != undefined) {
         if (!isString(value.action)) {
             return null;

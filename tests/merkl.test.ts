@@ -965,6 +965,8 @@ test("fetchMerklCampaignsBySymbol scopes requests by protocol and chain", async 
     assert.equal(url.searchParams.get("tokenSymbol"), "USDC");
     assert.equal(url.searchParams.get("chainId"), "143");
     assert.equal(url.toString().includes("undefined"), false);
+    // The Curvance proxy answers 400 to any other campaign query parameter (items, status, page...).
+    assert.deepEqual(Array.from(url.searchParams.keys()).sort(), ["chainId", "mainProtocolId", "tokenSymbol"]);
 });
 
 test("fetchMerklCampaignsBySymbol omits chainId for explicit all-chain lookups", async (t) => {
