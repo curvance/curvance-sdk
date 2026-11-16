@@ -52,6 +52,7 @@ export const mainnet: ChainConfig = {
         'PT-earnAUSD-8OCT2026',
         'PT-AUSD-17DEC2026',
         'PT-USDat-14JAN2027',
+        'PT-reUSD-10DEC2026',
         'aprMON'
     ],
     excluded_zap_addresses: [
@@ -63,6 +64,7 @@ export const mainnet: ChainConfig = {
         "0xDaf216939826AcABA0C2312F7E30A890213845CD" as address, // PT-earnAUSD-8OCT2026
         "0x8B562578b2f9Aa8C14cCda3c5d6CBCEaD3B06a57" as address, // PT-AUSD-17DEC2026
         "0xa08a69ab9dd3b04d0992bc7afb2c0b907bbdc147" as address, // PT-USDat-14JAN2027
+        "0xBb0dCdD5f0159C3D51D8BcE7d84F1b9fA390ef09" as address, // PT-reUSD-10DEC2026
         "0x0c65A0BC65a5D819235B71F554D210D3F80E0852" as address, // aprMON
     ],
 };

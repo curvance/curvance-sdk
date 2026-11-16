@@ -418,7 +418,7 @@ test("Monad mainnet manifest uses the current oracle and optimizer rollout", () 
     });
     assert.ok(chain_config["monad-mainnet"].excluded_zap_symbols.includes("hyAUSD"));
     assert.ok(chain_config["monad-mainnet"].excluded_zap_symbols.includes("aguaUSDCgc"));
-    for (const symbol of ["muBOND", "loAZND", "PT-AUSD-8OCT2026", "PT-earnAUSD-8OCT2026", "PT-AUSD-17DEC2026", "PT-USDat-14JAN2027", "aprMON"]) {
+    for (const symbol of ["muBOND", "loAZND", "PT-AUSD-8OCT2026", "PT-earnAUSD-8OCT2026", "PT-AUSD-17DEC2026", "PT-USDat-14JAN2027", "PT-reUSD-10DEC2026", "aprMON"]) {
         assert.ok(chain_config["monad-mainnet"].excluded_zap_symbols.includes(symbol));
     }
     assert.deepEqual(
@@ -432,6 +432,7 @@ test("Monad mainnet manifest uses the current oracle and optimizer rollout", () 
             "0xDaf216939826AcABA0C2312F7E30A890213845CD",
             "0x8B562578b2f9Aa8C14cCda3c5d6CBCEaD3B06a57",
             "0xa08a69ab9dd3b04d0992bc7afb2c0b907bbdc147",
+            "0xBb0dCdD5f0159C3D51D8BcE7d84F1b9fA390ef09",
             "0x0c65A0BC65a5D819235B71F554D210D3F80E0852",
         ],
     );

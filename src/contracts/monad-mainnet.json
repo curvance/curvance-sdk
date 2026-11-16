@@ -358,6 +358,20 @@
         "simplePositionManager": "0xE34F6500Bc075602bC407D3A76367278BE6470f8"
       }
     },
+    "PT-reUSD-10DEC2026 | USDC": {
+      "address": "0x8a8602ebd7Cf32b95991bDE40fbA1FB5fC7a0448",
+      "tokens": {
+        "PT-reUSD-10DEC2026": "0xF1C6af299bd4eBA98C3D1c045c104b5dEB05Ea95",
+        "USDC": "0x41E631Ff63dE7A9767799eAc8462278BEC3eDAB8"
+      },
+      "irms": {
+        "PT-reUSD-10DEC2026": "0x713F599c8fB1B0910Aa5961ea8fC1b7C81293447",
+        "USDC": "0x3a103862D4cfdAea958f31c34b17b9797E2A89C0"
+      },
+      "plugins": {
+        "simplePositionManager": "0x99716B8C5e112ef2C07D90131aD2a06F348E2636"
+      }
+    },
     "strUSD | AUSD": {
       "address": "0x3b085337249722F192061CA371eB50c6e56F51e9",
       "tokens": {
