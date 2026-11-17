@@ -415,6 +415,7 @@ test("Monad mainnet manifest uses the current oracle and optimizer rollout", () 
     });
     assert.deepEqual(monad.Optimizers, {
         "High Yield AUSD": "0xaD663aC84052b52BE4ed1b27BA416505e84a00Bf",
+        "High Yield USDC": "0x3EA4752b334070F3c72A4372263a5C391B612de1",
     });
     assert.ok(chain_config["monad-mainnet"].excluded_zap_symbols.includes("hyAUSD"));
     assert.ok(chain_config["monad-mainnet"].excluded_zap_symbols.includes("aguaUSDCgc"));

@@ -435,7 +435,8 @@
     }
   },
   "Optimizers": {
-    "High Yield AUSD": "0xaD663aC84052b52BE4ed1b27BA416505e84a00Bf"
+    "High Yield AUSD": "0xaD663aC84052b52BE4ed1b27BA416505e84a00Bf",
+    "High Yield USDC": "0x3EA4752b334070F3c72A4372263a5C391B612de1"
   },
   "OptimizerReader": "0x821a4a2Be28888917106B3A628c8edaffEbF2e2F",
   "ProtocolReader": "0xC5E6DD26095Cc1fa2369f7885dF263e150228D8b",
